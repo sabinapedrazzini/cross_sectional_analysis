@@ -514,7 +514,8 @@ prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
               prior(normal(0.18,2), class=Intercept, coef=4),
               prior(normal(0.57,2), class=Intercept, coef=5),
               prior(normal(1.07,2), class=Intercept, coef=6),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 env_house <- brm(data=d_env,
       family=cumulative(),
@@ -538,19 +539,19 @@ prior_sd <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
                  prior(normal(0.57,2), class=Intercept, coef=5),
                  prior(normal(1.07,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
-                 prior(normal(0,0.5), class=b))
+                 prior(normal(0,0.5), class=b)) 
 
 env_sd <- brm(data=d_env,
       family=cumulative(),
       prior=prior_sd,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
-      iter=4000, warmup=1000, chains=4, cores=4,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(5),
       seed=1)
-saveRDS(env_sd,"fit/env_sd.rds")
-
-summary(env_sd)
-loo(env_house,env_sd)
+saveRDS(env_sd,"fit/env_sd.rds") 
+ 
+summary(env_sd) 
+loo(env_house,env_sd) 
 ```
 
 ## Adding the predictors
@@ -581,7 +582,7 @@ env_pred <- brm(data=d_env,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
         si_m_e_s + mor_e_s + ce_e_s + an_e_s,
-      iter=4000, warmup=1000, chains=4, cores=4,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(5),
       seed=1)
 saveRDS(env_pred,"fit/env_pred.rds")
 
