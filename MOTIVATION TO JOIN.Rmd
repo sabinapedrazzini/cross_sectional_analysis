@@ -154,7 +154,7 @@ eco_pred <- brm(data=d,
         si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s,
       iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
       seed=1)
-saveRDS(eco_sd, "fit/eco_pred.rds")
+saveRDS(eco_pred, "fit/eco_pred.rds")
 
 summary(eco_pred)
 loo(eco_sd,eco_pred)
@@ -179,7 +179,8 @@ prior_empty <- c(#first item
               prior(normal(0.18,2), class=Intercept, coef=4),
               prior(normal(0.57,2), class=Intercept, coef=5),
               prior(normal(1.07,2), class=Intercept, coef=6),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 prior_empty_dT <- c(#first item
               prior(normal(-1.07,2), class=Intercept, coef=1, group="dv_market_2"),
@@ -194,7 +195,8 @@ prior_empty_dT <- c(#first item
               prior(normal(0.18,2), class=Intercept, coef=4, group="dv_market_3"),
               prior(normal(0.57,2), class=Intercept, coef=5, group="dv_market_3"),
               prior(normal(1.07,2), class=Intercept, coef=6, group="dv_market_3"),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 soc_ppc_logit_sT <- brm(data=d_soc,
       family=cumulative(),
@@ -294,7 +296,8 @@ prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
               prior(normal(0.18,2), class=Intercept, coef=4),
               prior(normal(0.57,2), class=Intercept, coef=5),
               prior(normal(1.07,2), class=Intercept, coef=6),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 soc_house <- brm(data=d_soc,
       family=cumulative(),
@@ -373,7 +376,7 @@ loo(soc_pred,soc_sd)
 
 ```{r}
 d_env <- d %>% 
-  pivot_longer(cols=starts_with("dv_env")) %>% 
+  pivot_longer(cols=starts_with("dv_env_")) %>% 
   rename(answer=value,
          item=name)
 ```
@@ -388,7 +391,8 @@ prior_empty <- c(#first item
               prior(normal(0.18,2), class=Intercept, coef=4),
               prior(normal(0.57,2), class=Intercept, coef=5),
               prior(normal(1.07,2), class=Intercept, coef=6),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 prior_empty_dT <- c(
   prior(normal(-1.07,2), class=Intercept, coef=1, group="dv_env_1"),
@@ -409,7 +413,8 @@ prior_empty_dT <- c(
               prior(normal(0.18,2), class=Intercept, coef=4, group="dv_env_3"),
               prior(normal(0.57,2), class=Intercept, coef=5, group="dv_env_3"),
               prior(normal(1.07,2), class=Intercept, coef=6, group="dv_env_3"),
-              prior(exponential(1), class=sd))
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
 
 env_ppc_logit_sT <- brm(data=d_env,
       family=cumulative(),
@@ -498,7 +503,7 @@ loo(env_logit_sT,
 env_empty <- readRDS("fit/env_logit_sT.rds")
 ```
 
-`env_probit_sT` seems to be the better model, but it has a lot of `Pareto_k >0.7`, while `env_logit_sT` is not significantly worse and does not have the `Pareto_k` problem =\> keep logit_sT
+`env_logit_sT` is clearly the best model
 
 ## Adding `(1|house)`
 
