@@ -30,7 +30,7 @@ prior_empty <- c(#first item
 eco_ppc_logit <- brm(data=d,
       family=cumulative(),
       prior=prior_empty,
-      dv_market_1 ~ 1,
+      dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4,
       sample_prior = "only",
       seed=1)
@@ -39,7 +39,7 @@ eco_ppc_logit <- brm(data=d,
 eco_ppc_probit <- brm(data=d,
       family=cumulative(link=probit),
       prior=prior_empty,
-      dv_market_1 ~ 1,
+      dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4,
       sample_prior = "only",
       seed=1)
@@ -55,15 +55,15 @@ plot_eco_logit|plot_eco_probit
 eco_logit <- brm(data=d,
       family=cumulative(),
       prior=prior_empty,
-      dv_market_1 ~ 1,
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
+      dv_market_1 ~ 1 + (1|ID),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
       seed=1)
 
 eco_probit <- brm(data=d,
       family=cumulative(link=probit),
       prior=prior_empty,
-      dv_market_1 ~ 1,
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
+      dv_market_1 ~ 1 + (1|ID),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
       seed=1)
 
 saveRDS(eco_logit, "fit/eco_logit.rds")
@@ -74,7 +74,7 @@ loo(eco_logit,eco_probit)
 eco_empty <- readRDS("fit/eco_logit.rds")
 ```
 
-The two models are essentially equivalent, so take `logit` (to stay coherent with what already done)
+Probit seems better, but at the same time it has a lot of estimation problems, so keep logit
 
 ## Adding `(1|house)`
 
@@ -90,8 +90,9 @@ prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
 eco_house <- brm(data=d,
       family=cumulative(),
       prior=prior_house,
-      dv_market_1 ~ (1|house),
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
+      dv_market_1 ~ (1|house) + (1|ID),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend="cmdstanr", silent=0,
       seed=1)
 saveRDS(eco_house, "fit/eco_house.rds")
 
@@ -114,9 +115,10 @@ prior_sd <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
 eco_sd <- brm(data=d,
       family=cumulative(),
       prior=prior_sd,
-      dv_market_1 ~ (1|house) +
+      dv_market_1 ~ (1|house) + (1|ID) +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend="cmdstanr", silent=0,
       seed=1)
 saveRDS(eco_sd, "fit/eco_sd.rds")
 
@@ -149,15 +151,126 @@ prior_pred <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
 eco_pred <- brm(data=d,
       family=cumulative(),
       prior=prior_pred,
-      dv_market_1 ~ (1|house) +
+      dv_market_1 ~ (1|house) + (1|ID) +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
         si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s,
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(3),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=0,
       seed=1)
-saveRDS(eco_pred, "fit/eco_pred.rds")
+saveRDS(eco_pred_id, "fit/eco_pred.rds")
 
 summary(eco_pred)
 loo(eco_sd,eco_pred)
+
+#test using the dataset below to be able to compare
+eco_pred_test <- brm(data=d_eco_full,
+      family=cumulative(),
+      prior=prior_pred,
+      dv_market_1 ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend = "cmdstanr",
+      seed=1)
+
+summary(eco_pred_test)
+```
+
+## Full model
+
+```{r}
+d_eco_full <- d %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market2")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+```
+
+```{r}
+MAIN <- bf(dv_market_1 ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s)
+
+CE <- bf(answer_ce ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+get_prior(data=d_eco_full,
+      family=cumulative(),
+      MAIN + CE + AN)
+
+prior_full <- c(
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=dvmarket1),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=dvmarket1),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=dvmarket1),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=dvmarket1),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=dvmarket1),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=dvmarket1),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0, 1), class=sd, resp=dvmarket1),
+  prior(normal(0, 1), class=sd, resp=answeran),
+  prior(normal(0, 1), class=sd, resp=answerce),
+  #beta coefficients = no expectations since sd variables
+  prior(normal(0,0.5), class=b, coef=gender_m_w, resp=dvmarket1),
+  prior(normal(0,0.5), class=b, coef=age_s, resp=dvmarket1),
+  prior(normal(0,0.5), class=b, coef=income_s, resp=dvmarket1),
+  prior(normal(0,0.5), class=b, coef=mopol_orientation, resp=dvmarket1),
+  prior(normal(0,0.5), class=b, coef=moeducation, resp=dvmarket1),
+  #predictors
+  prior(normal(0.37,0.2), class=b, coef=si_m_e_s, resp=dvmarket1),
+  prior(normal(0.33,0.19), class=b, coef=mor_m_s, resp=dvmarket1),
+  prior(normal(0.35,0.18), class=b, coef=ce_m_s, resp=dvmarket1),
+  prior(normal(0.35,0.2), class=b, coef=an_m_eco_s, resp=dvmarket1),
+  #for the mediation models
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+eco_full <- brm(data=d_eco_full,
+      family=cumulative(),
+      prior=prior_full,
+      MAIN + CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend = "cmdstanr",
+      seed=1)
+
+summary(eco_full)
+saveRDS(eco_full, "fit/eco_full.rds")
+eco_full_old <- readRDS("fit/eco_full_old.rds") #this is the model without allowing house and ID to covariate across equations => clearly worse than the new version, see loo
+eco_full <- readRDS("fit/eco_full.rds")
+loo(eco_full,eco_full_old)
+```
+
+## Comparison of all models
+
+```{r}
+eco_empty <- readRDS("fit/eco_logit.rds")
+eco_house <- readRDS("fit/eco_house.rds")
+eco_sd <- readRDS("fit/eco_sd.rds")
+eco_pred <- readRDS("fit/eco_pred.rds")
+eco_full <- readRDS("fit/eco_full.rds")
+
+loo(eco_empty,
+    eco_house,
+    eco_sd,
+    eco_pred)
 ```
 
 # Social motivation
@@ -370,6 +483,92 @@ saveRDS(soc_pred,"fit/soc_pred.rds")
 
 summary(soc_pred)
 loo(soc_pred,soc_sd)
+```
+
+## Full model
+
+```{r}
+d_soc_full <- d_soc %>% 
+  rename(answer_ca=answer,
+         item_ca=item) %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market1")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+```
+
+```{r}
+MAIN <- bf(answer_ca ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s + item_ca)
+
+CE <- bf(answer_ce ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+get_prior(data=d_eco_full,
+      family=cumulative(),
+      MAIN + CE + AN)
+
+prior_full <- c(
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answerca),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answerca),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answerca),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answerca),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answerca),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answerca),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0, 1), class=sd, resp=answerca),
+  prior(normal(0, 1), class=sd, resp=answeran),
+  prior(normal(0, 1), class=sd, resp=answerce),
+  #beta coefficients = no expectations since sd variables
+  prior(normal(0,0.5), class=b, coef=gender_m_w, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=age_s, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=income_s, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=mopol_orientation, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=moeducation, resp=answerca),
+  #predictors
+  prior(normal(0.37,0.2), class=b, coef=si_m_e_s, resp=answerca),
+  prior(normal(0.33,0.19), class=b, coef=mor_m_s, resp=answerca),
+  prior(normal(0.35,0.18), class=b, coef=ce_m_s, resp=answerca),
+  prior(normal(0.35,0.2), class=b, coef=an_m_eco_s, resp=answerca),
+  #for the mediation models
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+soc_full <- brm(data=d_soc_full,
+      family=cumulative(),
+      prior=prior_full,
+      MAIN + CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend="cmdstanr", silent=1,
+      seed=1)
+
+summary(soc_full)
+saveRDS(soc_full, "fit/soc_full.rds")
+
+soc_full_old <- readRDS("fit/soc_full_old.rds") #the one without letting the house and id levels correlate among equations
+soc_full <- readRDS("fit/soc_full.rds")
+
+loo(soc_full,soc_full_old)
 ```
 
 # Environmental motivation
@@ -589,3 +788,140 @@ saveRDS(env_pred,"fit/env_pred.rds")
 summary(env_pred)
 loo(env_pred,env_sd)
 ```
+
+## Full model
+
+```{r}
+d_env_full <- d_env %>% 
+  rename(answer_ca=answer,
+         item_ca=item) %>% 
+  pivot_longer(cols=c("ce_env_1","ce_env_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_env")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+```
+
+```{r}
+MAIN <- bf(answer_ca ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_e_s + ce_e_s + an_e_s + item_ca)
+
+CE <- bf(answer_ce ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_e_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|h|house) + (1|i|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_e_s + item_an)
+
+get_prior(data=d_env_full,
+      family=cumulative(),
+      MAIN + CE + AN)
+
+prior_full <- c(
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answerca),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answerca),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answerca),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answerca),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answerca),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answerca),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.07,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.57,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.18,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.18,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.57,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.07,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0, 1), class=sd, resp=answerca),
+  prior(normal(0, 1), class=sd, resp=answeran),
+  prior(normal(0, 1), class=sd, resp=answerce),
+  #beta coefficients = no expectations since sd variables
+  prior(normal(0,0.5), class=b, coef=gender_m_w, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=age_s, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=income_s, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=mopol_orientation, resp=answerca),
+  prior(normal(0,0.5), class=b, coef=moeducation, resp=answerca),
+  #predictors
+  prior(normal(0.37,0.2), class=b, coef=si_m_e_s, resp=answerca),
+  prior(normal(0.33,0.19), class=b, coef=mor_e_s, resp=answerca),
+  prior(normal(0.35,0.18), class=b, coef=ce_e_s, resp=answerca),
+  prior(normal(0.35,0.2), class=b, coef=an_e_s, resp=answerca),
+  #for the mediation models
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+env_full <- brm(data=d_env_full,
+      family=cumulative(),
+      prior=prior_full,
+      MAIN + CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      backend="cmdstanr", silent=0,
+      seed=1)
+
+summary(env_full)
+saveRDS(env_full, "fit/env_full.rds")
+
+env_full_old <- readRDS("fit/env_full_old.rds")
+env_full <- readRDS("fit/env_full.rds")
+
+loo(env_full, env_full_old)
+```
+
+# Reporting the mediation results (to then add to the other file on the other side)
+
+```{r}
+library(stringi)
+library(MOTE)
+
+mediation_tables <- function(X){
+  path <- paste0("fit/",X,"_full.rds")
+  model <- readRDS(path)
+  
+  if(X=="eco"){
+    mot="Economic"
+  }
+  if(X=="soc"){
+    mot="Social"
+  }
+  if(X=="env"){
+    mot="Environmental"
+  }
+  
+  (summary(model))$fixed %>% 
+    as.data.frame() %>% 
+    round(2) %>% 
+    rownames_to_column("effect") %>% 
+    filter(stri_detect_fixed(effect,"si_")|
+             stri_detect_fixed(effect,"mor_")|
+             stri_detect_fixed(effect,"_ce_")|
+             stri_detect_fixed(effect,"ce_si")|
+             stri_detect_fixed(effect,"ce_mor")|
+             stri_detect_fixed(effect,"_an_")|
+             stri_detect_fixed(effect,"an_si")|
+             stri_detect_fixed(effect,"an_mor")) %>% 
+    rename(Q2.5='l-95% CI', Q97.5='u-95% CI') %>% 
+    transmute(Outcome=case_when(stri_detect_fixed(effect,"answerce") ~ "Collective efficacy",
+                                stri_detect_fixed(effect,"answeran") ~ "Anger",
+                                .default=paste0(mot," motivation to join")),
+              Predictor=case_when(stri_detect_fixed(effect,"_si_") ~ "Social identity",
+                                  stri_detect_fixed(effect,"_mor_") ~ "Morality",
+                                  stri_detect_fixed(effect,"_ce_") ~ "Collective efficacy",
+                                  stri_detect_fixed(effect,"_an_") ~ "Anger"),
+              Est=paste0(apa(Estimate,2)," [",apa(Q2.5,2),";",apa(Q97.5,2),"]"))
+    
+}
+
+mediation_tables(X="eco")
+mediation_tables(X="soc")
+mediation_tables(X="env")
+```
+
+Copy this last chunck on the file to create the tables + commit and push this repo!!
