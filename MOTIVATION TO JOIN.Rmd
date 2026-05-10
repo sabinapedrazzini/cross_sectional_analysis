@@ -18,29 +18,41 @@ d <- read.csv("data/d_scales.csv")
 ## Prior predictive check
 
 ```{r}
-prior_empty <- c(#first item
+prior_empty_logit <- c(#first item
+              prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd))
+
+prior_empty_probit <- c(#first item
               prior(normal(-1.07,2), class=Intercept, coef=1),
               prior(normal(-0.57,2), class=Intercept, coef=2),
               prior(normal(-0.18,2), class=Intercept, coef=3),
               prior(normal(0.18,2), class=Intercept, coef=4),
               prior(normal(0.57,2), class=Intercept, coef=5),
-              prior(normal(1.07,2), class=Intercept, coef=6))
+              prior(normal(1.07,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd))
 
 #logit empty model
 eco_ppc_logit <- brm(data=d,
       family=cumulative(),
-      prior=prior_empty,
+      prior=prior_empty_logit,
       dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4,
+      backend="cmdstanr", silent=1,
       sample_prior = "only",
       seed=1)
 
 #probit empty model
 eco_ppc_probit <- brm(data=d,
       family=cumulative(link=probit),
-      prior=prior_empty,
+      prior=prior_empty_probit,
       dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4,
+      backend="cmdstanr", silent=1,
       sample_prior = "only",
       seed=1)
 
@@ -54,16 +66,18 @@ plot_eco_logit|plot_eco_probit
 #model comparison
 eco_logit <- brm(data=d,
       family=cumulative(),
-      prior=prior_empty,
+      prior=prior_empty_logit,
       dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 
 eco_probit <- brm(data=d,
       family=cumulative(link=probit),
-      prior=prior_empty,
+      prior=prior_empty_probit,
       dv_market_1 ~ 1 + (1|ID),
       iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 
 saveRDS(eco_logit, "fit/eco_logit.rds")
@@ -79,21 +93,22 @@ Probit seems better, but at the same time it has a lot of estimation problems, s
 ## Adding `(1|house)`
 
 ```{r}
-prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_house <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd))
 
 eco_house <- brm(data=d,
       family=cumulative(),
       prior=prior_house,
       dv_market_1 ~ (1|house) + (1|ID),
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
       backend="cmdstanr", silent=0,
       seed=1)
+
 saveRDS(eco_house, "fit/eco_house.rds")
 
 summary(eco_house)
@@ -103,12 +118,12 @@ loo(eco_empty,eco_house)
 ## Adding the socio-demographic variables
 
 ```{r}
-prior_sd <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_sd <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  prior(normal(0,0.5), class=b))
 
@@ -117,7 +132,7 @@ eco_sd <- brm(data=d,
       prior=prior_sd,
       dv_market_1 ~ (1|house) + (1|ID) +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
       backend="cmdstanr", silent=0,
       seed=1)
 saveRDS(eco_sd, "fit/eco_sd.rds")
@@ -129,12 +144,12 @@ loo(eco_house,eco_sd)
 ## Adding the predictors
 
 ```{r}
-prior_pred <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_pred <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  #beta coefficients = no expectations since sd variables
               prior(normal(0,0.5), class=b, coef=gender_m_w),
@@ -157,26 +172,13 @@ eco_pred <- brm(data=d,
       iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
       backend="cmdstanr", silent=0,
       seed=1)
-saveRDS(eco_pred_id, "fit/eco_pred.rds")
+saveRDS(eco_pred, "fit/eco_pred.rds")
 
 summary(eco_pred)
 loo(eco_sd,eco_pred)
-
-#test using the dataset below to be able to compare
-eco_pred_test <- brm(data=d_eco_full,
-      family=cumulative(),
-      prior=prior_pred,
-      dv_market_1 ~ (1|house) + (1|ID) +
-        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
-        si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s,
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(8),
-      backend = "cmdstanr",
-      seed=1)
-
-summary(eco_pred_test)
 ```
 
-## Full model
+## [OLD] Full model
 
 ```{r}
 d_eco_full <- d %>% 
@@ -258,6 +260,56 @@ eco_full <- readRDS("fit/eco_full.rds")
 loo(eco_full,eco_full_old)
 ```
 
+## Indirect paths
+
+```{r}
+d_eco_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market2")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+prior_ind <- c(
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0, 1), class=sd, resp=answeran),
+  prior(normal(0, 1), class=sd, resp=answerce),
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+CE <- bf(answer_ce ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+eco_ind <- brm(data=d_eco_ce_an,
+      family=cumulative(),
+      prior=prior_ind,
+      CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend = "cmdstanr",
+      seed=1)
+
+saveRDS(eco_ind, "fit/eco_ind.rds")
+summary(eco_ind)
+```
+
 ## Comparison of all models
 
 ```{r}
@@ -283,6 +335,8 @@ d_soc <- d %>%
 ```
 
 ## PPC
+
+Still to update with new logit priors!!
 
 ```{r}
 prior_empty <- c(#first item
@@ -403,12 +457,12 @@ soc_empty <- readRDS("fit/soc_logit_sT.rds")
 ## Adding `(1|house)`
 
 ```{r}
-prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-              prior(normal(-0.57,2), class=Intercept, coef=2),
-              prior(normal(-0.18,2), class=Intercept, coef=3),
-              prior(normal(0.18,2), class=Intercept, coef=4),
-              prior(normal(0.57,2), class=Intercept, coef=5),
-              prior(normal(1.07,2), class=Intercept, coef=6),
+prior_house <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
               prior(exponential(1), class=sd),
               prior(normal(0,0.5), class=b))
 
@@ -427,12 +481,12 @@ loo(soc_empty,soc_house)
 ## Adding the socio-demographic
 
 ```{r}
-prior_sd <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_sd <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  prior(normal(0,0.5), class=b))
 
@@ -441,7 +495,8 @@ soc_sd <- brm(data=d_soc,
       prior=prior_sd,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
-      iter=4000, warmup=1000, chains=4, cores=4,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 saveRDS(soc_sd,"fit/soc_sd.rds")
 
@@ -452,12 +507,12 @@ loo(soc_house,soc_sd)
 ## Adding the predictors
 
 ```{r}
-prior_pred <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_pred <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  #beta coefficients = no expectations since sd variables
               prior(normal(0,0.5), class=b, coef=gender_m_w),
@@ -477,7 +532,8 @@ soc_pred <- brm(data=d_soc,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
         si_m_e_s + mor_m_s + ce_m_s + an_m_soc_s,
-      iter=4000, warmup=1000, chains=4, cores=4,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 saveRDS(soc_pred,"fit/soc_pred.rds")
 
@@ -485,7 +541,7 @@ summary(soc_pred)
 loo(soc_pred,soc_sd)
 ```
 
-## Full model
+## [OLD] Full model
 
 ```{r}
 d_soc_full <- d_soc %>% 
@@ -571,6 +627,56 @@ soc_full <- readRDS("fit/soc_full.rds")
 loo(soc_full,soc_full_old)
 ```
 
+## Indirect paths
+
+```{r}
+d_soc_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market1")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+prior_ind <- c(
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0,1), class=sd, resp=answeran),
+  prior(normal(0,1), class=sd, resp=answerce),
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+CE <- bf(answer_ce ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+soc_ind <- brm(data=d_soc_ce_an,
+      family=cumulative(),
+      prior=prior_ind,
+      CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend = "cmdstanr", silent=1,
+      seed=1)
+
+saveRDS(soc_ind, "fit/soc_ind.rds")
+summary(soc_ind)
+```
+
 # Environmental motivation
 
 ```{r}
@@ -581,6 +687,8 @@ d_env <- d %>%
 ```
 
 ## PPC
+
+To update with the new logit prior!!
 
 ```{r}
 prior_empty <- c(#first item
@@ -707,12 +815,12 @@ env_empty <- readRDS("fit/env_logit_sT.rds")
 ## Adding `(1|house)`
 
 ```{r}
-prior_house <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-              prior(normal(-0.57,2), class=Intercept, coef=2),
-              prior(normal(-0.18,2), class=Intercept, coef=3),
-              prior(normal(0.18,2), class=Intercept, coef=4),
-              prior(normal(0.57,2), class=Intercept, coef=5),
-              prior(normal(1.07,2), class=Intercept, coef=6),
+prior_house <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
               prior(exponential(1), class=sd),
               prior(normal(0,0.5), class=b))
 
@@ -731,12 +839,12 @@ loo(env_empty,env_house)
 ## Adding the socio-demographic
 
 ```{r}
-prior_sd <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_sd <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  prior(normal(0,0.5), class=b)) 
 
@@ -745,7 +853,8 @@ env_sd <- brm(data=d_env,
       prior=prior_sd,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(5),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 saveRDS(env_sd,"fit/env_sd.rds") 
  
@@ -756,12 +865,12 @@ loo(env_house,env_sd)
 ## Adding the predictors
 
 ```{r}
-prior_pred <- c(prior(normal(-1.07,2), class=Intercept, coef=1),
-                 prior(normal(-0.57,2), class=Intercept, coef=2),
-                 prior(normal(-0.18,2), class=Intercept, coef=3),
-                 prior(normal(0.18,2), class=Intercept, coef=4),
-                 prior(normal(0.57,2), class=Intercept, coef=5),
-                 prior(normal(1.07,2), class=Intercept, coef=6),
+prior_pred <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
                  prior(exponential(1), class=sd),
                  #beta coefficients = no expectations since sd variables
               prior(normal(0,0.5), class=b, coef=gender_m_w),
@@ -781,7 +890,8 @@ env_pred <- brm(data=d_env,
       answer ~ (1|house) + (1|ID) + item +
         gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
         si_m_e_s + mor_e_s + ce_e_s + an_e_s,
-      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(5),
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend="cmdstanr", silent=1,
       seed=1)
 saveRDS(env_pred,"fit/env_pred.rds")
 
@@ -789,7 +899,7 @@ summary(env_pred)
 loo(env_pred,env_sd)
 ```
 
-## Full model
+## [OLD] Full model
 
 ```{r}
 d_env_full <- d_env %>% 
@@ -873,4 +983,54 @@ env_full_old <- readRDS("fit/env_full_old.rds")
 env_full <- readRDS("fit/env_full.rds")
 
 loo(env_full, env_full_old)
+```
+
+## Indirect paths
+
+```{r}
+d_env_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_env_1","ce_env_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_env")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+prior_ind <- c(
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answeran),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answeran),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answeran),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answeran),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answeran),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answeran),
+  prior(normal(-1.79,2), class=Intercept, coef=1, resp=answerce),
+  prior(normal(-0.92,2), class=Intercept, coef=2, resp=answerce),
+  prior(normal(-0.29,2), class=Intercept, coef=3, resp=answerce),
+  prior(normal(0.29,2), class=Intercept, coef=4, resp=answerce),
+  prior(normal(0.92,2), class=Intercept, coef=5, resp=answerce),
+  prior(normal(1.79,2), class=Intercept, coef=6, resp=answerce),
+  #random intercepts => so they can vary across 0
+  prior(normal(0,1), class=sd, resp=answeran),
+  prior(normal(0,1), class=sd, resp=answerce),
+  prior(normal(0,0.5), class=b, resp=answeran),
+  prior(normal(0,0.5), class=b, resp=answerce))
+
+CE <- bf(answer_ce ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+env_ind <- brm(data=d_env_ce_an,
+      family=cumulative(),
+      prior=prior_ind,
+      CE + AN,
+      iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+      backend = "cmdstanr", silent=1,
+      seed=1)
+
+saveRDS(env_ind, "fit/env_ind.rds")
+summary(env_ind)
 ```
