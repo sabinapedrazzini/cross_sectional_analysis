@@ -1,0 +1,265 @@
+---
+title: "Supplementary materials - Code for cross-sectional analyses on cooperation
+  (dimensions not measured longitudinally)"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(brms)
+```
+
+```{r}
+d <- read.csv("data/d_scales.csv")
+```
+
+Note: these models are not reported in the paper. To directly create the results' tables, please refer to the section `Results`. The code used to get the models is in the section below.
+
+# Results
+
+```{r}
+tables <- function(X) {
+  
+  path0 <- paste0("../cross_sectional_analysis/fit/",X,"_sd.rds")
+  path1 <- paste0("../cross_sectional_analysis/fit/",X,"_pred.rds")
+  
+  obj0 <- readRDS(path0)
+  obj1 <- readRDS(path1)
+  
+  m0 <- as.data.frame(fixef(obj0)) %>% 
+    round(2) %>%
+    rownames_to_column("Effect") %>% 
+    filter(!stri_detect_fixed(Effect,"Intercept")) %>%
+    mutate(new_est=paste0(apa(Estimate,2)," [",apa(Q2.5,2),";",apa(Q97.5,2),"]"),
+           Effect=case_when(Effect=="gender_m_w" ~ "Gender (M=1)",
+                            Effect=="age_s" ~ "Age",
+                            Effect=="income_s" ~ "Income",
+                            Effect=="mopol_orientation" ~ "Political orientation",
+                            Effect=="moeducation" ~ "Education level")) %>%
+    select(Effect, new_est) %>% 
+    rename('M0 Estimate [IC(95%)]'=new_est)
+  
+  m1 <- as.data.frame(fixef(obj1)) %>% 
+    round(2) %>% 
+    rownames_to_column("Effect") %>%
+    filter(!stri_detect_fixed(Effect,"Intercept")) %>%
+    mutate(new_est=paste0(apa(Estimate,2)," [",apa(Q2.5,2),";",apa(Q97.5,2),"]"),
+           Effect=case_when(Effect=="gender_m_w" ~ "Gender (M=1)",
+                            Effect=="age_s" ~ "Age",
+                            Effect=="income_s" ~ "Income",
+                            Effect=="mopol_orientation" ~ "Political orientation",
+                            Effect=="moeducation" ~ "Education level",
+                            Effect=="si_m_e_s" ~ "Social identity",
+                            Effect=="mor_m_s" ~ "Morality",
+                            Effect=="ce_m_s" ~ "Collective efficacy",
+                            Effect=="an_m_eco_s" ~ "Anger")) %>% 
+    select(Effect, new_est) %>% 
+    rename('M1 Estimate [IC(95%)]'=new_est)
+
+final_table <- m0 %>% right_join(m1, by="Effect")
+  
+name <- paste0("cooperation",X)
+
+assign(name, final_table, envir = .GlobalEnv)
+}
+
+lapply(X=c(4:7), FUN=tables)
+```
+
+# Code
+
+## Dimension 4: Mutual help and support
+
+```{r}
+d_long_c4 <- d %>% 
+  pivot_longer(cols=c("coop_5_2","coop_5_3","coop_5_4")) %>% 
+  rename(item_ca=name,
+         ca=value)
+```
+
+### M0
+
+```{r}
+prior_m0 <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd),
+              prior(normal(0,0.5), class=b))
+
+co4_m0 <- brm(data=d_long_c4,
+              family=cumulative(),
+              prior=prior_m0,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co4_m0, "fit/co4_m0.rds")
+```
+
+### M1
+
+```{r}
+prior_m1 <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd),
+              #beta coefficients = no expectations since sd variables
+              prior(normal(0,0.5), class=b, coef=gender_m_w),
+              prior(normal(0,0.5), class=b, coef=age_s),
+              prior(normal(0,0.5), class=b, coef=income_s),
+              prior(normal(0,0.5), class=b, coef=mopol_orientation),
+              prior(normal(0,0.5), class=b, coef=moeducation),
+              #priors for the predictors, calculated based on the results of the meta-analysis
+              prior(normal(0.37,0.2), class=b, coef=si_h_s),
+              prior(normal(0.33,0.19), class=b, coef=mor_h_s),
+              prior(normal(0.35,0.18), class=b, coef=ce_h_s),
+              prior(normal(0.35,0.2), class=b, coef=an_h_s))
+
+co4_m1 <- brm(data=d_long_c4,
+              family=cumulative(),
+              prior=prior_m1,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_h_s + mor_h_s + ce_h_s + an_h_s +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co4_m1, "fit/co4_m1.rds")
+```
+
+## Dimension 5: Organization of activities
+
+```{r}
+d_long_c5 <- d %>% 
+  pivot_longer(cols=c("coop_6_1","coop_6_2","coop_6_3","coop_6_5")) %>% 
+  rename(item_ca=name,
+         ca=value)
+```
+
+### M0
+
+```{r}
+co5_m0 <- brm(data=d_long_c5,
+              family=cumulative(),
+              prior=prior_m0,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co5_m0, "fit/co5_m0.rds")
+```
+
+### M1
+
+```{r}
+co5_m1 <- brm(data=d_long_c5,
+              family=cumulative(),
+              prior=prior_m1,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_h_s + mor_h_s + ce_h_s + an_h_s +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co5_m1, "fit/co5_m1.rds")
+```
+
+## Dimension 6: Engagement for the whole neighbourhood
+
+```{r}
+d_long_c6 <- d %>% 
+  pivot_longer(cols=c("coop_6_4","coop_8_1","coop_8_3","coop_8_4")) %>% 
+  rename(item_ca=name,
+         ca=value)
+```
+
+### M0
+
+```{r}
+co6_m0 <- brm(data=d_long_c6,
+              family=cumulative(),
+              prior=prior_m0,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co6_m0, "fit/co6_m0.rds")
+```
+
+### M1
+
+```{r}
+co6_m1 <- brm(data=d_long_c6,
+              family=cumulative(),
+              prior=prior_m1,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_h_s + mor_h_s + ce_h_s + an_h_s +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co6_m1, "fit/co6_m1.rds")
+```
+
+## Dimension 7: Children
+
+```{r}
+d_long_c7 <- d %>% 
+  pivot_longer(cols=c("coop_9_1","coop_9_2","coop_9_3")) %>% 
+  rename(item_ca=name,
+         ca=value)
+```
+
+### M0
+
+```{r}
+co7_m0 <- brm(data=d_long_c7,
+              family=cumulative(),
+              prior=prior_m0,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co7_m0, "fit/co7_m0.rds")
+```
+
+### M1
+
+```{r}
+co7_m1 <- brm(data=d_long_c7,
+              family=cumulative(),
+              prior=prior_m1,
+              ca ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_h_s + mor_h_s + ce_h_s + an_h_s +
+                item_ca,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(co7_m1, "fit/co7_m1.rds")
+```
