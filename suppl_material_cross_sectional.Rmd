@@ -1,0 +1,139 @@
+---
+title: "Supplementary materials - Cross sectional analyses about the motivations to
+  join"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(brms)
+```
+
+```{r}
+d <- read.csv("data/d_scales.csv")
+```
+
+# 1. Economic motivation
+
+## M0: socio-demographic
+
+```{r}
+prior_m0 <-    c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
+                 prior(exponential(1), class=sd),
+                 prior(normal(0,0.5), class=b))
+
+eco_m0 <- brm(data=d,
+              family=cumulative(),
+              prior=prior_sd,
+              dv_market_1 ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(eco_m0, "fit/eco_m0.rds")
+```
+
+## M1: predictors
+
+```{r}
+prior_m1 <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd),
+              #beta coefficients = no expectations since sd variables
+              prior(normal(0,0.5), class=b, coef=gender_m_w),
+              prior(normal(0,0.5), class=b, coef=age_s),
+              prior(normal(0,0.5), class=b, coef=income_s),
+              prior(normal(0,0.5), class=b, coef=mopol_orientation),
+              prior(normal(0,0.5), class=b, coef=moeducation),
+              #priors for the predictors, calculated based on the results of the meta-analysis
+              prior(normal(0.37,0.2), class=b, coef=si_m_e_s),
+              prior(normal(0.33,0.19), class=b, coef=mor_m_s),
+              prior(normal(0.35,0.18), class=b, coef=ce_m_s),
+              prior(normal(0.35,0.2), class=b, coef=an_m_eco_s))
+
+eco_m1 <- brm(data=d,
+              family=cumulative(),
+              prior=prior_pred,
+              dv_market_1 ~ (1|house) + (1|ID) +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_m_e_s + mor_m_s + ce_m_s + an_m_eco_s,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=0,
+              seed=1)
+
+saveRDS(eco_m1, "fit/eco_m1.rds")
+```
+
+## M2: indirect paths (coll. efficacy and anger predicted by soc. identity and morality)
+
+```{r}
+d_eco_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market2")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+prior_m2 <- c(prior(normal(-1.79,2), class=Intercept, coef=1, resp=answeran),
+              prior(normal(-0.92,2), class=Intercept, coef=2, resp=answeran),
+              prior(normal(-0.29,2), class=Intercept, coef=3, resp=answeran),
+              prior(normal(0.29,2), class=Intercept, coef=4, resp=answeran),
+              prior(normal(0.92,2), class=Intercept, coef=5, resp=answeran),
+              prior(normal(1.79,2), class=Intercept, coef=6, resp=answeran),
+              prior(normal(-1.79,2), class=Intercept, coef=1, resp=answerce),
+              prior(normal(-0.92,2), class=Intercept, coef=2, resp=answerce),
+              prior(normal(-0.29,2), class=Intercept, coef=3, resp=answerce),
+              prior(normal(0.29,2), class=Intercept, coef=4, resp=answerce),
+              prior(normal(0.92,2), class=Intercept, coef=5, resp=answerce),
+              prior(normal(1.79,2), class=Intercept, coef=6, resp=answerce),
+              #random intercepts => so they can vary across 0
+              prior(normal(0,1), class=sd, resp=answeran),
+              prior(normal(0,1), class=sd, resp=answerce),
+              prior(normal(0,0.5), class=b, resp=answeran),
+              prior(normal(0,0.5), class=b, resp=answerce))
+
+CE <- bf(answer_ce ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+eco_m2 <- brm(data=d_eco_ce_an,
+              family=cumulative(),
+              prior=prior_ind,
+              CE + AN,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend = "cmdstanr",
+              seed=1)
+
+saveRDS(eco_m2, "fit/eco_m2.rds")
+```
+
+# 2. Social motivation
+
+## M0: socio-demographic
+
+## M1: predictors
+
+## M2: complete model
+
+# 3. Environmental motivation
+
+## M0: socio-demographic
+
+## M1: predictors
+
+## M2: complete model
