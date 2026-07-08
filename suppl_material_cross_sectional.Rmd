@@ -124,13 +124,196 @@ saveRDS(eco_m2, "fit/eco_m2.rds")
 
 # 2. Social motivation
 
+```{r}
+d_soc <- d %>% 
+  pivot_longer(cols=c("dv_market_2","dv_market_3")) %>% 
+  rename(answer=value,
+         item=name)
+```
+
+## Test same vs diff tresholds
+
+```{r}
+prior_sameT <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+                 prior(normal(-0.92,2), class=Intercept, coef=2),
+                 prior(normal(-0.29,2), class=Intercept, coef=3),
+                 prior(normal(0.29,2), class=Intercept, coef=4),
+                 prior(normal(0.92,2), class=Intercept, coef=5),
+                 prior(normal(1.79,2), class=Intercept, coef=6),
+                 prior(exponential(1), class=sd),
+                 prior(normal(0,0.5), class=b))
+
+prior_diffT <- c(prior(normal(-1.79,2), class=Intercept, coef=1, group="dv_market_2"),
+                 prior(normal(-0.92,2), class=Intercept, coef=2, group="dv_market_2"),
+                 prior(normal(-0.29,2), class=Intercept, coef=3, group="dv_market_2"),
+                 prior(normal(0.29,2), class=Intercept, coef=4, group="dv_market_2"),
+                 prior(normal(0.92,2), class=Intercept, coef=5, group="dv_market_2"),
+                 prior(normal(1.79,2), class=Intercept, coef=6, group="dv_market_2"),
+                 prior(normal(-1.79,2), class=Intercept, coef=1, group="dv_market_3"),
+                 prior(normal(-0.92,2), class=Intercept, coef=2, group="dv_market_3"),
+                 prior(normal(-0.29,2), class=Intercept, coef=3, group="dv_market_3"),
+                 prior(normal(0.29,2), class=Intercept, coef=4, group="dv_market_3"),
+                 prior(normal(0.92,2), class=Intercept, coef=5, group="dv_market_3"),
+                 prior(normal(1.79,2), class=Intercept, coef=6, group="dv_market_3"),
+                 prior(exponential(1), class=sd),
+                 prior(normal(0,0.5), class=b))
+
+soc_sameT <- brm(data=d_soc,
+                 family=cumulative(),
+                 prior=prior_sameT,
+                 answer ~ (1|ID) + item,
+                 iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+                 backend = "cmdstanr",
+                 seed=1)
+saveRDS(soc_sameT,"fit/soc_sameT.rds")
+
+soc_diffT <- brm(data=d_soc,
+                 family=cumulative(),
+                 prior=prior_diffT,
+                 answer | thres(gr = item) ~ (1|ID) + item,
+                 iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+                 backend = "cmdstanr",
+                 seed=1)
+saveRDS(soc_diffT,"fit/soc_diffT.rds")
+
+loo(soc_sameT,soc_diffT)
+```
+
+Basically the same, so keep the simplest one (same T)
+
 ## M0: socio-demographic
+
+```{r}
+soc_m0 <- brm(data=d_soc,
+              family=cumulative(),
+              prior=prior_m0,
+              answer ~ (1|house) + (1|ID) + item +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=1,
+              seed=1)
+saveRDS(soc_m0,"fit/soc_m0.rds")
+```
 
 ## M1: predictors
 
+```{r}
+prior_m1 <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd),
+              #beta coefficients = no expectations since sd variables
+              prior(normal(0,0.5), class=b, coef=gender_m_w),
+              prior(normal(0,0.5), class=b, coef=age_s),
+              prior(normal(0,0.5), class=b, coef=income_s),
+              prior(normal(0,0.5), class=b, coef=mopol_orientation),
+              prior(normal(0,0.5), class=b, coef=moeducation),
+              #priors for the predictors, calculated based on the results of the meta-analysis
+              prior(normal(0.37,0.2), class=b, coef=si_m_e_s),
+              prior(normal(0.33,0.19), class=b, coef=mor_m_s),
+              prior(normal(0.35,0.18), class=b, coef=ce_m_s),
+              prior(normal(0.35,0.2), class=b, coef=an_m_soc_s))
+
+soc_m1 <- brm(data=d_soc,
+              family=cumulative(),
+              prior=prior_m1,
+              answer ~ (1|house) + (1|ID) + item +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_m_e_s + mor_m_s + ce_m_s + an_m_soc_s,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=1,
+              seed=1)
+saveRDS(soc_m1,"fit/soc_m1.rds")
+```
+
 ## M2: complete model
 
+```{r}
+d_soc_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_market_1","ce_market_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_market1")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+CE <- bf(answer_ce ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_ce)
+  
+AN <- bf(answer_an ~ (1|house) + (1|ID) +
+        gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+        si_m_e_s + mor_m_s + item_an)
+
+soc_m2 <- brm(data=d_soc_ce_an,
+              family=cumulative(),
+              prior=prior_m2,
+              CE + AN,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend = "cmdstanr", silent=1,
+              seed=1)
+
+saveRDS(soc_m2, "fit/soc_m2.rds")
+```
+
 # 3. Environmental motivation
+
+```{r}
+d_env <- d %>% 
+  pivot_longer(cols=starts_with("dv_env_")) %>% 
+  rename(answer=value,
+         item=name)
+```
+
+## Test same vs different thresholds
+
+```{r}
+prior_diffT <- c(prior(normal(-1.79,2), class=Intercept, coef=1, group="dv_env_1"),
+                 prior(normal(-0.92,2), class=Intercept, coef=2, group="dv_env_1"),
+                 prior(normal(-0.29,2), class=Intercept, coef=3, group="dv_env_1"),
+                 prior(normal(0.29,2), class=Intercept, coef=4, group="dv_env_1"),
+                 prior(normal(0.92,2), class=Intercept, coef=5, group="dv_env_1"),
+                 prior(normal(1.79,2), class=Intercept, coef=6, group="dv_env_1"),
+                 prior(normal(-1.79,2), class=Intercept, coef=1, group="dv_env_2"),
+                 prior(normal(-0.92,2), class=Intercept, coef=2, group="dv_env_2"),
+                 prior(normal(-0.29,2), class=Intercept, coef=3, group="dv_env_2"),
+                 prior(normal(0.29,2), class=Intercept, coef=4, group="dv_env_2"),
+                 prior(normal(0.92,2), class=Intercept, coef=5, group="dv_env_2"),
+                 prior(normal(1.79,2), class=Intercept, coef=6, group="dv_env_2"),
+                 prior(normal(-1.79,2), class=Intercept, coef=1, group="dv_env_3"),
+                 prior(normal(-0.92,2), class=Intercept, coef=2, group="dv_env_3"),
+                 prior(normal(-0.29,2), class=Intercept, coef=3, group="dv_env_3"),
+                 prior(normal(0.29,2), class=Intercept, coef=4, group="dv_env_3"),
+                 prior(normal(0.92,2), class=Intercept, coef=5, group="dv_env_3"),
+                 prior(normal(1.79,2), class=Intercept, coef=6, group="dv_env_3"),
+                 prior(exponential(1), class=sd),
+                 prior(normal(0,0.5), class=b))
+
+env_sameT <- brm(data=d_env,
+                 family=cumulative(),
+                 prior=prior_sameT,
+                 answer ~ (1|ID) + item,
+                 iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+                 backend = "cmdstanr",
+                 seed=1)
+saveRDS(env_sameT,"fit/env_sameT.rds")
+
+env_diffT <- brm(data=d_env,
+                 family=cumulative(),
+                 prior=prior_diffT,
+                 answer | thres(gr = item) ~ (1|ID) + item,
+                 iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+                 backend = "cmdstanr",
+                 seed=1)
+saveRDS(env_diffT,"fit/env_diffT.rds")
+
+loo(env_sameT,env_diffT)
+```
+
+The model with the same thresholds is better
 
 ## M0: socio-demographic
 
