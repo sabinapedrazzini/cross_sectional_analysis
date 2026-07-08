@@ -317,6 +317,70 @@ The model with the same thresholds is better
 
 ## M0: socio-demographic
 
+```{r}
+env_m0 <- brm(data=d_env,
+              family=cumulative(),
+              prior=prior_m0,
+              answer ~ (1|house) + (1|ID) + item +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation),
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=1,
+              seed=1)
+saveRDS(env_m0,"fit/env_m0.rds")
+```
+
 ## M1: predictors
 
+```{r}
+prior_m1 <- c(prior(normal(-1.79,2), class=Intercept, coef=1),
+              prior(normal(-0.92,2), class=Intercept, coef=2),
+              prior(normal(-0.29,2), class=Intercept, coef=3),
+              prior(normal(0.29,2), class=Intercept, coef=4),
+              prior(normal(0.92,2), class=Intercept, coef=5),
+              prior(normal(1.79,2), class=Intercept, coef=6),
+              prior(exponential(1), class=sd),
+              #beta coefficients = no expectations since sd variables
+              prior(normal(0,0.5), class=b, coef=gender_m_w),
+              prior(normal(0,0.5), class=b, coef=age_s),
+              prior(normal(0,0.5), class=b, coef=income_s),
+              prior(normal(0,0.5), class=b, coef=mopol_orientation),
+              prior(normal(0,0.5), class=b, coef=moeducation),
+              #priors for the predictors, calculated based on the results of the meta-analysis
+              prior(normal(0.37,0.2), class=b, coef=si_m_e_s),
+              prior(normal(0.33,0.19), class=b, coef=mor_e_s),
+              prior(normal(0.35,0.18), class=b, coef=ce_e_s),
+              prior(normal(0.35,0.2), class=b, coef=an_e_s))
+
+env_m1 <- brm(data=d_env,
+              family=cumulative(),
+              prior=prior_m1,
+              answer ~ (1|house) + (1|ID) + item +
+                gender_m_w + age_s + income_s + mo(education) + mo(pol_orientation) +
+                si_m_e_s + mor_e_s + ce_e_s + an_e_s,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend="cmdstanr", silent=1,
+              seed=1)
+saveRDS(env_m1,"fit/env_m1.rds")
+```
+
 ## M2: complete model
+
+```{r}
+d_env_ce_an <- d %>% 
+  pivot_longer(cols=c("ce_env_1","ce_env_2")) %>% 
+  rename(answer_ce=value,
+         item_ce=name) %>% 
+  pivot_longer(cols=starts_with("anger_env")) %>% 
+  rename(answer_an=value,
+         item_an=name)
+
+env_m2 <- brm(data=d_env_ce_an,
+              family=cumulative(),
+              prior=prior_m2,
+              CE + AN,
+              iter=4000, warmup=1000, chains=4, cores=4, threads=threading(4),
+              backend = "cmdstanr", silent=1,
+              seed=1)
+
+saveRDS(env_m2, "fit/env_m2.rds")
+```
